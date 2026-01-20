@@ -1,0 +1,31 @@
+[package]
+name = "dvcli"
+version = "0.1.0"
+edition = "2021"
+description = "CLI client for querying Gradle build information from Develocity"
+license = "MIT"
+readme = "README.md"
+keywords = ["develocity", "gradle", "build", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "dvcli"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+colored = "2"
+chrono = { version = "0.4", features = ["serde"] }
+dirs = "5"
+toml = "0.8"
+url = "2"
+
+[profile.release]
+lto = true
+strip = true
