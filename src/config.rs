@@ -123,6 +123,8 @@ pub struct IncludeOptions {
     pub deprecations: bool,
     /// Include failure information.
     pub failures: bool,
+    /// Include test execution results.
+    pub tests: bool,
 }
 
 impl IncludeOptions {
@@ -132,6 +134,7 @@ impl IncludeOptions {
             result: true,
             deprecations: true,
             failures: true,
+            tests: true,
         }
     }
 
@@ -150,10 +153,11 @@ impl IncludeOptions {
                 "result" => opts.result = true,
                 "deprecations" => opts.deprecations = true,
                 "failures" => opts.failures = true,
+                "tests" => opts.tests = true,
                 "all" => return Ok(Self::all()),
                 other if !other.is_empty() => {
                     return Err(format!(
-                        "Invalid include option '{}'. Valid options: result, deprecations, failures, all",
+                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, all",
                         other
                     ));
                 }
@@ -162,7 +166,7 @@ impl IncludeOptions {
         }
 
         // If nothing was specified, include everything
-        if !opts.result && !opts.deprecations && !opts.failures {
+        if !opts.result && !opts.deprecations && !opts.failures && !opts.tests {
             return Ok(Self::all());
         }
 
@@ -171,7 +175,7 @@ impl IncludeOptions {
 
     /// Returns true if any option is enabled.
     pub fn any(&self) -> bool {
-        self.result || self.deprecations || self.failures
+        self.result || self.deprecations || self.failures || self.tests
     }
 }
 
@@ -281,10 +285,14 @@ impl ConfigBuilder {
         let include = self.include.unwrap_or_else(IncludeOptions::all);
 
         // Resolve verbose: CLI > config file > default (false)
-        let verbose = self.verbose.unwrap_or_else(|| config_file.verbose.unwrap_or(false));
+        let verbose = self
+            .verbose
+            .unwrap_or_else(|| config_file.verbose.unwrap_or(false));
 
         // Resolve timeout: CLI > config file > default (30)
-        let timeout = self.timeout.unwrap_or_else(|| config_file.timeout.unwrap_or(30));
+        let timeout = self
+            .timeout
+            .unwrap_or_else(|| config_file.timeout.unwrap_or(30));
 
         Ok(Config {
             server,
@@ -307,6 +315,7 @@ mod tests {
         assert!(opts.result);
         assert!(opts.deprecations);
         assert!(opts.failures);
+        assert!(opts.tests);
     }
 
     #[test]
@@ -315,6 +324,7 @@ mod tests {
         assert!(opts.result);
         assert!(!opts.deprecations);
         assert!(!opts.failures);
+        assert!(!opts.tests);
     }
 
     #[test]
@@ -323,6 +333,25 @@ mod tests {
         assert!(opts.result);
         assert!(!opts.deprecations);
         assert!(opts.failures);
+        assert!(!opts.tests);
+    }
+
+    #[test]
+    fn test_include_options_parse_tests() {
+        let opts = IncludeOptions::parse("tests").unwrap();
+        assert!(!opts.result);
+        assert!(!opts.deprecations);
+        assert!(!opts.failures);
+        assert!(opts.tests);
+    }
+
+    #[test]
+    fn test_include_options_parse_multiple_with_tests() {
+        let opts = IncludeOptions::parse("result,tests").unwrap();
+        assert!(opts.result);
+        assert!(!opts.deprecations);
+        assert!(!opts.failures);
+        assert!(opts.tests);
     }
 
     #[test]
@@ -332,6 +361,7 @@ mod tests {
         assert!(opts.result);
         assert!(opts.deprecations);
         assert!(opts.failures);
+        assert!(opts.tests);
     }
 
     #[test]
