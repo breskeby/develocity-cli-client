@@ -41,7 +41,7 @@ enum Commands {
         #[arg(short, long, default_value = "human")]
         output: String,
 
-        /// Data to include: result, deprecations, failures, all
+        /// Data to include: result, deprecations, failures, tests, all
         #[arg(short, long, default_value = "all")]
         include: String,
 
@@ -92,13 +92,11 @@ async fn run(cli: Cli) -> Result<(), Error> {
             config,
         } => {
             // Parse output format
-            let output_format: OutputFormat = output
-                .parse()
-                .map_err(|e: String| Error::Parse(e))?;
+            let output_format: OutputFormat =
+                output.parse().map_err(|e: String| Error::Parse(e))?;
 
             // Parse include options
-            let include_opts =
-                IncludeOptions::parse(&include).map_err(|e| Error::Parse(e))?;
+            let include_opts = IncludeOptions::parse(&include).map_err(Error::Parse)?;
 
             // Build configuration
             let cfg = ConfigBuilder::new()

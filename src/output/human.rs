@@ -1,8 +1,8 @@
 //! Human-readable colored terminal output formatter.
 
 use crate::output::{
-    format_duration, BuildFailureOutput, BuildOutput, DeprecationOutput,
-    FailuresOutput, ResultOutput, TestFailureOutput,
+    format_duration, BuildFailureOutput, BuildOutput, DeprecationOutput, FailuresOutput,
+    ResultOutput, TestExecutionOutput, TestFailureOutput, TestsOutput,
 };
 use colored::Colorize;
 
@@ -12,7 +12,11 @@ pub fn format(output: &BuildOutput, verbose: bool) -> String {
 
     // Header
     lines.push(format!("Build: {}", output.build_id.bold()));
-    lines.push(format!("{} {}", "🔗".dimmed(), output.build_scan_url.cyan()));
+    lines.push(format!(
+        "{} {}",
+        "🔗".dimmed(),
+        output.build_scan_url.cyan()
+    ));
     lines.push("═".repeat(64));
     lines.push(String::new());
 
@@ -31,6 +35,13 @@ pub fn format(output: &BuildOutput, verbose: bool) -> String {
     // Failures section
     if let Some(ref failures) = output.failures {
         lines.extend(format_failures(failures, verbose));
+        lines.push(String::new());
+    }
+
+    // Tests section
+    if let Some(ref tests) = output.tests {
+        lines.extend(format_tests(tests, verbose));
+        lines.push(String::new());
     }
 
     lines.join("\n")
@@ -45,7 +56,10 @@ fn format_result(result: &ResultOutput) -> Vec<String> {
     let status = if result.has_failed {
         format!("{} FAILED", "✗".red()).red().bold().to_string()
     } else {
-        format!("{} SUCCESS", "✓".green()).green().bold().to_string()
+        format!("{} SUCCESS", "✓".green())
+            .green()
+            .bold()
+            .to_string()
     };
     lines.push(format!("   Status:      {}", status));
 
@@ -117,10 +131,7 @@ fn format_deprecations(deprecations: &[DeprecationOutput]) -> Vec<String> {
     let mut lines = Vec::new();
 
     if deprecations.is_empty() {
-        lines.push(format!(
-            "{} Deprecations (0)",
-            "⚠️ ".dimmed()
-        ));
+        lines.push(format!("{} Deprecations (0)", "⚠️ ".dimmed()));
         lines.push(format!("   {}", "No deprecations found".dimmed()));
         return lines;
     }
@@ -133,15 +144,8 @@ fn format_deprecations(deprecations: &[DeprecationOutput]) -> Vec<String> {
     lines.push("─".repeat(64));
 
     for (i, dep) in deprecations.iter().enumerate() {
-        lines.push(format!(
-            "   {}. {}",
-            i + 1,
-            dep.summary.yellow()
-        ));
-        lines.push(format!(
-            "      Removal:  {}",
-            dep.removal_details.dimmed()
-        ));
+        lines.push(format!("   {}. {}", i + 1, dep.summary.yellow()));
+        lines.push(format!("      Removal:  {}", dep.removal_details.dimmed()));
 
         if let Some(ref advice) = dep.advice {
             lines.push(format!("      Advice:   {}", advice));
@@ -154,10 +158,7 @@ fn format_deprecations(deprecations: &[DeprecationOutput]) -> Vec<String> {
         if !dep.usages.is_empty() {
             lines.push("      Used by:".to_string());
             for usage in &dep.usages {
-                let location = usage
-                    .location
-                    .as_deref()
-                    .unwrap_or("<unknown>");
+                let location = usage.location.as_deref().unwrap_or("<unknown>");
                 lines.push(format!(
                     "        {} {}: {}",
                     "•".dimmed(),
@@ -198,7 +199,12 @@ fn format_failures(failures: &FailuresOutput, verbose: bool) -> Vec<String> {
             }
         }
 
-        if !verbose && failures.build_failures.iter().any(|f| f.stacktrace.is_some()) {
+        if !verbose
+            && failures
+                .build_failures
+                .iter()
+                .any(|f| f.stacktrace.is_some())
+        {
             lines.push(String::new());
             lines.push(format!("   {}", "[Use --verbose for stacktraces]".dimmed()));
         }
@@ -311,6 +317,191 @@ fn format_test_failure(failure: &TestFailureOutput, index: usize, verbose: bool)
                     "      {} more lines...",
                     (stack_lines.len() - max_lines).to_string().dimmed()
                 ));
+            }
+        }
+    }
+
+    lines
+}
+
+fn format_tests(tests: &TestsOutput, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    // Summary header
+    let status_icon = if tests.summary.failed > 0 {
+        "❌"
+    } else {
+        "✓"
+    };
+
+    let status_colored = if tests.summary.failed > 0 {
+        format!(
+            "{} Tests ({} passed, {} failed, {} skipped)",
+            status_icon,
+            tests.summary.passed.to_string().green(),
+            tests.summary.failed.to_string().red(),
+            tests.summary.skipped.to_string().yellow(),
+        )
+    } else {
+        format!(
+            "{} Tests ({} passed, {} failed, {} skipped)",
+            status_icon.green(),
+            tests.summary.passed.to_string().green(),
+            "0".dimmed(),
+            tests.summary.skipped.to_string().yellow(),
+        )
+    };
+
+    lines.push(status_colored);
+    lines.push(format!(
+        "   Total: {} tests in {}",
+        tests.summary.total,
+        format_duration(tests.summary.duration_ms)
+    ));
+    lines.push(format!("   Pass rate: {:.1}%", tests.summary.pass_rate));
+    lines.push("─".repeat(64));
+
+    // Failed tests (always show)
+    let failed: Vec<_> = tests
+        .tests
+        .iter()
+        .filter(|t| t.outcome == "failed")
+        .collect();
+
+    if !failed.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("   {} Failed Tests:", "✗".red()));
+        for (i, test) in failed.iter().enumerate() {
+            lines.extend(format_test_execution(test, i + 1, verbose));
+        }
+    }
+
+    // Skipped tests (show count, details only if verbose)
+    let skipped: Vec<_> = tests
+        .tests
+        .iter()
+        .filter(|t| t.outcome == "skipped")
+        .collect();
+
+    if !skipped.is_empty() && verbose {
+        lines.push(String::new());
+        lines.push(format!("   {} Skipped Tests:", "⊘".yellow()));
+        for test in &skipped {
+            let name = test
+                .test_name
+                .as_deref()
+                .map(|n| format!("{} > {}", test.class_name, n))
+                .unwrap_or_else(|| test.class_name.clone());
+            lines.push(format!("      {} {}", "•".dimmed(), name.dimmed()));
+        }
+    }
+
+    // Passed tests (only show if verbose)
+    if verbose {
+        let passed: Vec<_> = tests
+            .tests
+            .iter()
+            .filter(|t| t.outcome == "passed")
+            .collect();
+
+        if !passed.is_empty() {
+            lines.push(String::new());
+            lines.push(format!(
+                "   {} Passed Tests ({}):",
+                "✓".green(),
+                passed.len()
+            ));
+            // Limit to first 20 tests to avoid overwhelming output
+            for test in passed.iter().take(20) {
+                let name = test
+                    .test_name
+                    .as_deref()
+                    .map(|n| format!("{} > {}", test.class_name, n))
+                    .unwrap_or_else(|| test.class_name.clone());
+                lines.push(format!(
+                    "      {} {} ({})",
+                    "✓".green(),
+                    name,
+                    format_duration(test.duration_ms).dimmed()
+                ));
+            }
+            if passed.len() > 20 {
+                lines.push(format!("      ... and {} more", passed.len() - 20));
+            }
+        }
+    }
+
+    lines
+}
+
+fn format_test_execution(test: &TestExecutionOutput, index: usize, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    let name = test
+        .test_name
+        .as_deref()
+        .map(|n| format!("{} > {}", test.class_name, n))
+        .unwrap_or_else(|| test.class_name.clone());
+
+    lines.push(format!(
+        "      {}. {} ({})",
+        index,
+        name.red(),
+        format_duration(test.duration_ms)
+    ));
+
+    if let Some(ref msg) = test.failure_message {
+        let first_line = msg.lines().next().unwrap_or(msg);
+        lines.push(format!("         {}", first_line));
+    }
+
+    if verbose {
+        if let Some(ref stacktrace) = test.stacktrace {
+            lines.push(String::new());
+            lines.push(format!("         {}:", "Stacktrace".dimmed()));
+            for line in stacktrace.lines().take(10) {
+                lines.push(format!("         {}", line.dimmed()));
+            }
+            let total_lines = stacktrace.lines().count();
+            if total_lines > 10 {
+                lines.push(format!(
+                    "         {} more lines...",
+                    (total_lines - 10).to_string().dimmed()
+                ));
+            }
+        }
+
+        if let Some(ref stdout) = test.stdout {
+            if !stdout.is_empty() {
+                lines.push(String::new());
+                lines.push(format!("         {}:", "stdout".dimmed()));
+                for line in stdout.lines().take(20) {
+                    lines.push(format!("         {}", line.dimmed()));
+                }
+                let total_lines = stdout.lines().count();
+                if total_lines > 20 {
+                    lines.push(format!(
+                        "         {} more lines...",
+                        (total_lines - 20).to_string().dimmed()
+                    ));
+                }
+            }
+        }
+
+        if let Some(ref stderr) = test.stderr {
+            if !stderr.is_empty() {
+                lines.push(String::new());
+                lines.push(format!("         {}:", "stderr".dimmed()));
+                for line in stderr.lines().take(20) {
+                    lines.push(format!("         {}", line.dimmed()));
+                }
+                let total_lines = stderr.lines().count();
+                if total_lines > 20 {
+                    lines.push(format!(
+                        "         {} more lines...",
+                        (total_lines - 20).to_string().dimmed()
+                    ));
+                }
             }
         }
     }

@@ -5,7 +5,7 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 ## Features
 
 - Query Gradle build scan details from Develocity REST API
-- Display build results, deprecations, and failures
+- Display build results, deprecations, failures, and test details
 - Human-readable colored output or JSON for scripting
 - Configurable via CLI arguments, environment variables, or config file
 - Shell completions for bash, zsh, fish, and PowerShell
@@ -46,7 +46,7 @@ dvcli build <BUILD_SCAN_ID> [OPTIONS]
 | `-s, --server <URL>` | `DEVELOCITY_SERVER` | Develocity server URL | - |
 | `-t, --token <TOKEN>` | `DEVELOCITY_ACCESS_KEY` | Access key for authentication | - |
 | `-o, --output <FORMAT>` | - | Output format: `json`, `human` | `human` |
-| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `all` | `all` |
+| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `all` | `all` |
 | `-v, --verbose` | - | Show stacktraces and verbose output | false |
 | `--timeout <SECS>` | - | Request timeout in seconds | `30` |
 | `-c, --config <PATH>` | - | Config file path | `~/.develocity/config.toml` |
@@ -70,6 +70,12 @@ dvcli build abc123xyz -i failures -v
 
 # Show result and deprecations (no failures)
 dvcli build abc123xyz -i result,deprecations
+
+# Show only test results
+dvcli build abc123xyz -i tests
+
+# Show test results with detailed output (stdout/stderr, stacktraces)
+dvcli build abc123xyz -i tests -v
 ```
 
 ## Configuration
@@ -125,6 +131,16 @@ Failures
   Test Failures (3)
     ✗ com.example.MyTest.testSomething
       Expected true but was false
+
+Tests (95 passed, 3 failed, 2 skipped)
+  Total: 100 tests in 45s
+  Pass rate: 95.0%
+
+  ✗ Failed Tests:
+    1. com.example.MyTest > testSomething (120ms)
+       Expected true but was false
+    2. com.example.OtherTest > testFeature (85ms)
+       NullPointerException: value cannot be null
 ```
 
 ### JSON
@@ -147,7 +163,18 @@ dvcli build abc123xyz -o json
     "hostname": "build-agent-01"
   },
   "deprecations": [...],
-  "failures": {...}
+  "failures": {...},
+  "tests": {
+    "summary": {
+      "total": 100,
+      "passed": 95,
+      "failed": 3,
+      "skipped": 2,
+      "durationMs": 45000,
+      "passRate": 95.0
+    },
+    "tests": [...]
+  }
 }
 ```
 
@@ -186,6 +213,7 @@ dvcli completions powershell >> $PROFILE
 - `GET /api/builds/{id}` - Validate build exists, check build tool type
 - `GET /api/builds/{id}/gradle-attributes` - Build result information
 - `GET /api/builds/{id}/gradle-deprecations` - Deprecation warnings
+- `GET /api/builds/{id}/gradle-tests` - Test execution results
 - `GET /api/builds/{id}/gradle-build-cache-performance` - (future)
 
 ## Requirements

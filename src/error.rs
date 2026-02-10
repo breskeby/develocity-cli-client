@@ -24,11 +24,15 @@ pub enum Error {
     Timeout(u64),
 
     /// Authentication failed (401).
-    #[error("Authentication failed (401).\n  Check your access key or token is valid and not expired.")]
+    #[error(
+        "Authentication failed (401).\n  Check your access key or token is valid and not expired."
+    )]
     Unauthorized,
 
     /// Access denied (403).
-    #[error("Access denied (403).\n  Ensure you have the 'Access build data via the API' permission.")]
+    #[error(
+        "Access denied (403).\n  Ensure you have the 'Access build data via the API' permission."
+    )]
     Forbidden,
 
     /// Build not found (404).
@@ -36,7 +40,9 @@ pub enum Error {
     BuildNotFound(String),
 
     /// Build is not a Gradle build.
-    #[error("Build '{0}' is not a Gradle build (type: {1}).\n  This CLI only supports Gradle builds.")]
+    #[error(
+        "Build '{0}' is not a Gradle build (type: {1}).\n  This CLI only supports Gradle builds."
+    )]
     NotGradleBuild(String, String),
 
     /// Generic API error.

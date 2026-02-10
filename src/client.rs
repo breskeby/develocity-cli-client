@@ -2,7 +2,7 @@
 
 use crate::config::IncludeOptions;
 use crate::error::{Error, Result};
-use crate::models::{Build, GradleAttributes, GradleDeprecations, GradleFailures};
+use crate::models::{Build, GradleAttributes, GradleDeprecations, GradleFailures, GradleTests};
 use reqwest::{Client, StatusCode};
 use std::time::Duration;
 use url::Url;
@@ -90,6 +90,23 @@ impl DevelocityClient {
         self.get_json(url, build_id).await
     }
 
+    /// Get Gradle test results.
+    ///
+    /// Returns `Ok(None)` if tests are not available (404/403).
+    pub async fn get_gradle_tests(&self, build_id: &str) -> Result<Option<GradleTests>> {
+        let url = self
+            .base_url
+            .join(&format!("api/builds/{}/gradle-tests", build_id))
+            .map_err(Error::InvalidUrl)?;
+
+        match self.get_json_optional(url, build_id).await {
+            Ok(tests) => Ok(Some(tests)),
+            Err(Error::BuildNotFound(_)) => Ok(None), // No tests available
+            Err(Error::Forbidden) => Ok(None),        // Feature not enabled
+            Err(e) => Err(e),
+        }
+    }
+
     /// Fetch all requested build details in parallel.
     pub async fn get_gradle_build_details(
         &self,
@@ -107,7 +124,7 @@ impl DevelocityClient {
         }
 
         // Fetch requested data in parallel
-        let (attributes, deprecations, failures) = tokio::join!(
+        let (attributes, deprecations, failures, tests) = tokio::join!(
             async {
                 if include.result {
                     Some(self.get_gradle_attributes(build_id).await)
@@ -128,14 +145,28 @@ impl DevelocityClient {
                 } else {
                     None
                 }
+            },
+            async {
+                if include.tests {
+                    Some(self.get_gradle_tests(build_id).await)
+                } else {
+                    None
+                }
             }
         );
+
+        // For tests, we flatten Option<Result<Option<T>>> to Option<T>
+        let tests = match tests {
+            Some(result) => result?,
+            None => None,
+        };
 
         Ok(GradleBuildDetails {
             build,
             attributes: attributes.transpose()?,
             deprecations: deprecations.transpose()?,
             failures: failures.transpose()?,
+            tests,
         })
     }
 
@@ -182,6 +213,16 @@ impl DevelocityClient {
             }
         }
     }
+
+    /// Make a GET request for optional data (returns error on 404/403 for caller to handle).
+    async fn get_json_optional<T: serde::de::DeserializeOwned>(
+        &self,
+        url: Url,
+        build_id: &str,
+    ) -> Result<T> {
+        // Reuse the same logic as get_json - the caller handles 404/403 specially
+        self.get_json(url, build_id).await
+    }
 }
 
 /// All requested details for a Gradle build.
@@ -195,4 +236,6 @@ pub struct GradleBuildDetails {
     pub deprecations: Option<GradleDeprecations>,
     /// Failures (if requested).
     pub failures: Option<GradleFailures>,
+    /// Test execution results (if requested).
+    pub tests: Option<GradleTests>,
 }
