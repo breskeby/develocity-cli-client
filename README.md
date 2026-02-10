@@ -1,6 +1,6 @@
 # dvcli - Develocity CLI Client
 
-A command-line tool for querying Gradle build information from a [Develocity](https://gradle.com/develocity/) server.
+An AI agent friendly command-line tool for querying Gradle build information from a [Develocity](https://gradle.com/develocity/) server.
 
 ## Features
 
