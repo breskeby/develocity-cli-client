@@ -12,6 +12,12 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 
 ## Installation
 
+### From crates.io
+
+```bash
+cargo install dvcli
+```
+
 ### From Source
 
 ```bash
@@ -21,7 +27,7 @@ cargo build --release
 # Binary is at target/release/dvcli
 ```
 
-### Move to PATH (optional)
+### Move to PATH (optional, source build)
 
 ```bash
 cp target/release/dvcli /usr/local/bin/
