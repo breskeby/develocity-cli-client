@@ -15,7 +15,7 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 ### From Source
 
 ```bash
-git clone https://github.com/your-org/develocity-cli-client.git
+git clone https://github.com/breskeby/develocity-cli-client.git
 cd develocity-cli-client
 cargo build --release
 # Binary is at target/release/dvcli

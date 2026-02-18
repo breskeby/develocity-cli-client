@@ -3,8 +3,13 @@ name = "dvcli"
 version = "0.2.0"
 edition = "2021"
 description = "CLI client for querying Gradle build information from Develocity"
+authors = ["Rene Groeschke <rene@breskeby.com>"]
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/breskeby/develocity-cli-client"
+homepage = "https://github.com/breskeby/develocity-cli-client"
+documentation = "https://docs.rs/dvcli"
+rust-version = "1.70"
 keywords = ["develocity", "gradle", "build", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 
