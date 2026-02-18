@@ -8,7 +8,7 @@ pub enum Error {
     MissingServer,
 
     /// Access token is not configured.
-    #[error("Access token is required.\n  Set via: --token, DEVELOCITY_ACCESS_KEY env var, or access_key in ~/.develocity/config.toml")]
+    #[error("Access token is required.\n  Set via: --token, DEVELOCITY_API_KEY env var, or token in ~/.develocity/config.toml")]
     MissingToken,
 
     /// Invalid server URL provided.

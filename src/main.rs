@@ -34,7 +34,7 @@ enum Commands {
         server: Option<String>,
 
         /// Access key or token for authentication
-        #[arg(short, long, env = "DEVELOCITY_ACCESS_KEY")]
+        #[arg(short, long, env = "DEVELOCITY_API_KEY")]
         token: Option<String>,
 
         /// Output format: json, human

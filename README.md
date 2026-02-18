@@ -44,7 +44,7 @@ dvcli build <BUILD_SCAN_ID> [OPTIONS]
 | Option | Environment Variable | Description | Default |
 |--------|---------------------|-------------|---------|
 | `-s, --server <URL>` | `DEVELOCITY_SERVER` | Develocity server URL | - |
-| `-t, --token <TOKEN>` | `DEVELOCITY_ACCESS_KEY` | Access key for authentication | - |
+| `-t, --token <TOKEN>` | `DEVELOCITY_API_KEY` | Access key for authentication | - |
 | `-o, --output <FORMAT>` | - | Output format: `json`, `human` | `human` |
 | `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `all` | `all` |
 | `-v, --verbose` | - | Show stacktraces and verbose output | false |
@@ -59,7 +59,7 @@ dvcli build abc123xyz --server https://ge.example.com --token your-access-key
 
 # Using environment variables
 export DEVELOCITY_SERVER=https://ge.example.com
-export DEVELOCITY_ACCESS_KEY=your-access-key
+export DEVELOCITY_API_KEY=your-access-key
 dvcli build abc123xyz
 
 # JSON output for scripting

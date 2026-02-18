@@ -36,12 +36,12 @@ which dvcli
 The following environment variables should be set for authentication:
 
 - **`DEVELOCITY_SERVER`**: `https://gradle-enterprise.example.com`
-- **`DEVELOCITY_ACCESS_KEY`**: Your Develocity access token
+- **`DEVELOCITY_API_KEY`**: Your Develocity access token
 
 Verify configuration:
 ```bash
 [ -z "$DEVELOCITY_SERVER" ] && echo "WARNING: DEVELOCITY_SERVER not set" || echo "Server: $DEVELOCITY_SERVER"
-[ -z "$DEVELOCITY_ACCESS_KEY" ] && echo "WARNING: DEVELOCITY_ACCESS_KEY not set" || echo "Access key is configured"
+[ -z "$DEVELOCITY_API_KEY" ] && echo "WARNING: DEVELOCITY_API_KEY not set" || echo "Access key is configured"
 ```
 
 ### Alternative Configuration
@@ -295,7 +295,7 @@ This is especially useful for:
 | Code | Meaning | Action |
 |------|---------|--------|
 | 0 | Success | Build data retrieved (even if build failed) |
-| 1 | Configuration error | Check DEVELOCITY_SERVER and DEVELOCITY_ACCESS_KEY |
+| 1 | Configuration error | Check DEVELOCITY_SERVER and DEVELOCITY_API_KEY |
 | 2 | Network error | Check connectivity to gradle-enterprise.example.com |
 | 3 | Authentication error | Verify access token is valid |
 | 4 | Not found | Build scan ID doesn't exist |
@@ -314,7 +314,7 @@ Fix: Set environment variable or create config file.
 ```
 ERROR: Authentication failed (401 Unauthorized)
 ```
-Fix: Check that DEVELOCITY_ACCESS_KEY is valid and has read permissions.
+Fix: Check that DEVELOCITY_API_KEY is valid and has read permissions.
 
 **Not Found (exit 4)**:
 ```

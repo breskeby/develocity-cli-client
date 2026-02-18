@@ -20,8 +20,8 @@ const DEFAULT_CONFIG_FILE: &str = "config.toml";
 pub struct ConfigFile {
     /// Develocity server URL.
     pub server: Option<String>,
-    /// Access key for authentication.
-    pub access_key: Option<String>,
+    /// Access token for authentication.
+    pub token: Option<String>,
     /// Default output format.
     pub output_format: Option<String>,
     /// Default verbose setting.
@@ -269,8 +269,8 @@ impl ConfigBuilder {
         // Resolve token: CLI > env > config file
         let token = self
             .token
-            .or_else(|| std::env::var("DEVELOCITY_ACCESS_KEY").ok())
-            .or(config_file.access_key)
+            .or_else(|| std::env::var("DEVELOCITY_API_KEY").ok())
+            .or(config_file.token)
             .ok_or(Error::MissingToken)?;
 
         // Resolve output format: CLI > config file > default
