@@ -2,7 +2,8 @@
 
 use crate::output::{
     format_duration, BuildFailureOutput, BuildOutput, DeprecationOutput, FailuresOutput,
-    ResultOutput, TestExecutionOutput, TestFailureOutput, TestsOutput,
+    ResultOutput, TaskEntryOutput, TaskExecutionOutput, TestExecutionOutput, TestFailureOutput,
+    TestsOutput,
 };
 use colored::Colorize;
 
@@ -41,6 +42,12 @@ pub fn format(output: &BuildOutput, verbose: bool) -> String {
     // Tests section
     if let Some(ref tests) = output.tests {
         lines.extend(format_tests(tests, verbose));
+        lines.push(String::new());
+    }
+
+    // Task execution section
+    if let Some(ref task_execution) = output.task_execution {
+        lines.extend(format_task_execution(task_execution, verbose));
         lines.push(String::new());
     }
 
@@ -334,22 +341,33 @@ fn format_tests(tests: &TestsOutput, verbose: bool) -> Vec<String> {
         "✓"
     };
 
+    // Build summary parts
+    let mut parts = vec![
+        format!("{} passed", tests.summary.passed.to_string().green()),
+        if tests.summary.failed > 0 {
+            format!("{} failed", tests.summary.failed.to_string().red())
+        } else {
+            format!("{} failed", "0".dimmed())
+        },
+        format!("{} skipped", tests.summary.skipped.to_string().yellow()),
+    ];
+    if tests.summary.flaky > 0 {
+        parts.push(format!(
+            "{} flaky",
+            tests.summary.flaky.to_string().yellow()
+        ));
+    }
+    if tests.summary.not_selected > 0 {
+        parts.push(format!(
+            "{} not selected",
+            tests.summary.not_selected.to_string().dimmed()
+        ));
+    }
+
     let status_colored = if tests.summary.failed > 0 {
-        format!(
-            "{} Tests ({} passed, {} failed, {} skipped)",
-            status_icon,
-            tests.summary.passed.to_string().green(),
-            tests.summary.failed.to_string().red(),
-            tests.summary.skipped.to_string().yellow(),
-        )
+        format!("{} Tests ({})", status_icon, parts.join(", "))
     } else {
-        format!(
-            "{} Tests ({} passed, {} failed, {} skipped)",
-            status_icon.green(),
-            tests.summary.passed.to_string().green(),
-            "0".dimmed(),
-            tests.summary.skipped.to_string().yellow(),
-        )
+        format!("{} Tests ({})", status_icon.green(), parts.join(", "))
     };
 
     lines.push(status_colored);
@@ -372,7 +390,22 @@ fn format_tests(tests: &TestsOutput, verbose: bool) -> Vec<String> {
         lines.push(String::new());
         lines.push(format!("   {} Failed Tests:", "✗".red()));
         for (i, test) in failed.iter().enumerate() {
-            lines.extend(format_test_execution(test, i + 1, verbose));
+            lines.extend(format_test_execution(test, i + 1));
+        }
+    }
+
+    // Flaky tests (always show if present)
+    let flaky: Vec<_> = tests
+        .tests
+        .iter()
+        .filter(|t| t.outcome == "flaky")
+        .collect();
+
+    if !flaky.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("   {} Flaky Tests:", "⚠".yellow()));
+        for (i, test) in flaky.iter().enumerate() {
+            lines.extend(format_test_execution(test, i + 1));
         }
     }
 
@@ -434,7 +467,7 @@ fn format_tests(tests: &TestsOutput, verbose: bool) -> Vec<String> {
     lines
 }
 
-fn format_test_execution(test: &TestExecutionOutput, index: usize, verbose: bool) -> Vec<String> {
+fn format_test_execution(test: &TestExecutionOutput, index: usize) -> Vec<String> {
     let mut lines = Vec::new();
 
     let name = test
@@ -443,68 +476,211 @@ fn format_test_execution(test: &TestExecutionOutput, index: usize, verbose: bool
         .map(|n| format!("{} > {}", test.class_name, n))
         .unwrap_or_else(|| test.class_name.clone());
 
+    let outcome_colored = match test.outcome.as_str() {
+        "failed" => name.red().to_string(),
+        "flaky" => name.yellow().to_string(),
+        _ => name.clone(),
+    };
+
     lines.push(format!(
         "      {}. {} ({})",
         index,
-        name.red(),
+        outcome_colored,
         format_duration(test.duration_ms)
     ));
 
-    if let Some(ref msg) = test.failure_message {
-        let first_line = msg.lines().next().unwrap_or(msg);
-        lines.push(format!("         {}", first_line));
-    }
+    // Show work unit
+    lines.push(format!(
+        "         {}",
+        format!("Work unit: {}", test.work_unit).dimmed()
+    ));
 
-    if verbose {
-        if let Some(ref stacktrace) = test.stacktrace {
-            lines.push(String::new());
-            lines.push(format!("         {}:", "Stacktrace".dimmed()));
-            for line in stacktrace.lines().take(10) {
-                lines.push(format!("         {}", line.dimmed()));
-            }
-            let total_lines = stacktrace.lines().count();
-            if total_lines > 10 {
-                lines.push(format!(
-                    "         {} more lines...",
-                    (total_lines - 10).to_string().dimmed()
-                ));
-            }
-        }
-
-        if let Some(ref stdout) = test.stdout {
-            if !stdout.is_empty() {
-                lines.push(String::new());
-                lines.push(format!("         {}:", "stdout".dimmed()));
-                for line in stdout.lines().take(20) {
-                    lines.push(format!("         {}", line.dimmed()));
-                }
-                let total_lines = stdout.lines().count();
-                if total_lines > 20 {
-                    lines.push(format!(
-                        "         {} more lines...",
-                        (total_lines - 20).to_string().dimmed()
-                    ));
-                }
-            }
-        }
-
-        if let Some(ref stderr) = test.stderr {
-            if !stderr.is_empty() {
-                lines.push(String::new());
-                lines.push(format!("         {}:", "stderr".dimmed()));
-                for line in stderr.lines().take(20) {
-                    lines.push(format!("         {}", line.dimmed()));
-                }
-                let total_lines = stderr.lines().count();
-                if total_lines > 20 {
-                    lines.push(format!(
-                        "         {} more lines...",
-                        (total_lines - 20).to_string().dimmed()
-                    ));
-                }
-            }
-        }
+    // Show retry count if there were multiple executions
+    if test.execution_count > 1 {
+        lines.push(format!(
+            "         {}",
+            format!("Executions: {} (retried)", test.execution_count).yellow()
+        ));
     }
 
     lines
+}
+
+fn format_task_execution(task_exec: &TaskExecutionOutput, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    let summary = &task_exec.summary;
+    let savings = &task_exec.avoidance_savings;
+
+    // Header with avoidance ratio
+    let ratio_pct = savings.ratio * 100.0;
+    let ratio_str = format!("{:.0}%", ratio_pct);
+    let ratio_colored = if ratio_pct >= 50.0 {
+        ratio_str.green().to_string()
+    } else if ratio_pct >= 20.0 {
+        ratio_str.yellow().to_string()
+    } else {
+        ratio_str.to_string()
+    };
+
+    lines.push(format!(
+        "{} Task Execution ({} tasks, {} avoidance)",
+        "⚙️ ".dimmed(),
+        summary.total_tasks,
+        ratio_colored,
+    ));
+    lines.push("─".repeat(64));
+
+    // Timing summary
+    lines.push(format!(
+        "   Build time:       {}",
+        format_duration(summary.build_time_ms)
+    ));
+    lines.push(format!(
+        "   Task execution:   {} (effective), {} (serial)",
+        format_duration(summary.effective_task_execution_time_ms),
+        format_duration(summary.serial_task_execution_time_ms),
+    ));
+    lines.push(format!(
+        "   Parallelism:      {:.1}x serialization factor",
+        summary.serialization_factor
+    ));
+
+    // Avoidance summary
+    lines.push(String::new());
+    lines.push(format!(
+        "   Avoided:    {} tasks  (saved {})",
+        summary.avoided_tasks.to_string().green(),
+        format_duration(savings.total_ms).green(),
+    ));
+    if savings.up_to_date_ms > 0 {
+        lines.push(format!(
+            "     {} Up-to-date:   {}",
+            "•".dimmed(),
+            format_duration(savings.up_to_date_ms),
+        ));
+    }
+    if savings.local_build_cache_ms > 0 {
+        lines.push(format!(
+            "     {} Local cache:  {}",
+            "•".dimmed(),
+            format_duration(savings.local_build_cache_ms),
+        ));
+    }
+    if savings.remote_build_cache_ms > 0 {
+        lines.push(format!(
+            "     {} Remote cache: {}",
+            "•".dimmed(),
+            format_duration(savings.remote_build_cache_ms),
+        ));
+    }
+    lines.push(format!(
+        "   Executed:   {} tasks",
+        summary.executed_tasks.to_string().yellow(),
+    ));
+
+    // Failed tasks (always show)
+    let failed: Vec<_> = task_exec.tasks.iter().filter(|t| t.has_failed).collect();
+    if !failed.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("   {} Failed Tasks:", "✗".red()));
+        for task in &failed {
+            lines.push(format!(
+                "      {} {} ({})",
+                "✗".red(),
+                task.task_path.red(),
+                format_duration(task.duration_ms),
+            ));
+        }
+    }
+
+    // Per-task details (verbose only, but show a sample otherwise)
+    if verbose {
+        lines.push(String::new());
+        lines.push(format!("   {} All Tasks:", "▸".dimmed()));
+        for task in &task_exec.tasks {
+            lines.extend(format_task_entry(task));
+        }
+    } else if !task_exec.tasks.is_empty() {
+        // Show a compact count breakdown by outcome
+        let mut outcome_counts: std::collections::BTreeMap<&str, usize> =
+            std::collections::BTreeMap::new();
+        for task in &task_exec.tasks {
+            *outcome_counts.entry(task.outcome.as_str()).or_insert(0) += 1;
+        }
+        lines.push(String::new());
+        lines.push(format!("   {} Breakdown:", "▸".dimmed()));
+        for (outcome, count) in &outcome_counts {
+            let colored_outcome = match *outcome {
+                "UP-TO-DATE" | "FROM-CACHE (local)" | "FROM-CACHE (remote)" => {
+                    outcome.green().to_string()
+                }
+                s if s.starts_with("EXECUTED") => outcome.yellow().to_string(),
+                _ => outcome.dimmed().to_string(),
+            };
+            lines.push(format!("      {:>4}  {}", count, colored_outcome));
+        }
+        lines.push(String::new());
+        lines.push(format!(
+            "   {}",
+            "[Use --verbose for per-task details]".dimmed()
+        ));
+    }
+
+    lines
+}
+
+fn format_task_entry(task: &TaskEntryOutput) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    let outcome_colored = match task.outcome.as_str() {
+        "UP-TO-DATE" => task.outcome.green().to_string(),
+        s if s.starts_with("FROM-CACHE") => task.outcome.green().to_string(),
+        s if s.starts_with("EXECUTED") => task.outcome.yellow().to_string(),
+        "NO-SOURCE" | "LIFECYCLE" | "SKIPPED" => task.outcome.dimmed().to_string(),
+        _ => task.outcome.clone(),
+    };
+
+    let failed_marker = if task.has_failed {
+        format!(" {}", "FAILED".red().bold())
+    } else {
+        String::new()
+    };
+
+    lines.push(format!(
+        "      {} {} [{}]{}",
+        outcome_colored,
+        task.task_path,
+        format_duration(task.duration_ms).dimmed(),
+        failed_marker,
+    ));
+
+    // Extra details for verbose mode
+    if let Some(ref task_type) = task.task_type {
+        // Show short type name (last segment)
+        let short_type = task_type.rsplit('.').next().unwrap_or(task_type);
+        lines.push(format!("         Type: {}", short_type.dimmed()));
+    }
+    if let Some(ref reason) = task.non_cacheability_reason {
+        lines.push(format!("         Not cacheable: {}", reason.dimmed()));
+    }
+    if let Some(size) = task.cache_artifact_size {
+        lines.push(format!(
+            "         Cache artifact: {}",
+            format_bytes(size).dimmed()
+        ));
+    }
+
+    lines
+}
+
+/// Format bytes into a human-readable string.
+fn format_bytes(bytes: i64) -> String {
+    if bytes < 1024 {
+        format!("{} B", bytes)
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    }
 }

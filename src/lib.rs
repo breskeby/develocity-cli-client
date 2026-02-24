@@ -25,7 +25,7 @@
 //!     )?;
 //!
 //!     let details = client
-//!         .get_gradle_build_details("abc123xyz", &IncludeOptions::all())
+//!         .get_gradle_build_details("abc123xyz", &IncludeOptions::all(), &[])
 //!         .await?;
 //!
 //!     println!("Build failed: {}", details.attributes.map(|a| a.has_failed).unwrap_or(false));

@@ -5,7 +5,8 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 ## Features
 
 - Query Gradle build scan details from Develocity REST API
-- Display build results, deprecations, failures, and test details
+- Display build results, deprecations, failures, test details, and task execution performance
+- Filter test results by outcome (passed, failed, skipped, flaky, notSelected)
 - Human-readable colored output or JSON for scripting
 - Configurable via CLI arguments, environment variables, or config file
 - Shell completions for bash, zsh, fish, and PowerShell
@@ -52,8 +53,9 @@ dvcli build <BUILD_SCAN_ID> [OPTIONS]
 | `-s, --server <URL>` | `DEVELOCITY_SERVER` | Develocity server URL | - |
 | `-t, --token <TOKEN>` | `DEVELOCITY_API_KEY` | Access key for authentication | - |
 | `-o, --output <FORMAT>` | - | Output format: `json`, `human` | `human` |
-| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `all` | `all` |
-| `-v, --verbose` | - | Show stacktraces and verbose output | false |
+| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `task-execution`, `all` | `all` |
+| `-v, --verbose` | - | Show stacktraces, per-task details, and verbose output | false |
+| `--test-outcomes <OUTCOMES>` | - | Filter tests by outcome (comma-separated): `passed`, `failed`, `skipped`, `flaky`, `notSelected` | - |
 | `--timeout <SECS>` | - | Request timeout in seconds | `30` |
 | `-c, --config <PATH>` | - | Config file path | `~/.develocity/config.toml` |
 
@@ -80,8 +82,20 @@ dvcli build abc123xyz -i result,deprecations
 # Show only test results
 dvcli build abc123xyz -i tests
 
-# Show test results with detailed output (stdout/stderr, stacktraces)
-dvcli build abc123xyz -i tests -v
+# Show only failed tests
+dvcli build abc123xyz -i tests --test-outcomes failed
+
+# Show failed and flaky tests with detailed output
+dvcli build abc123xyz -i tests --test-outcomes failed,flaky -v
+
+# Show task execution performance (cache avoidance, per-task timing)
+dvcli build abc123xyz -i task-execution
+
+# Show per-task details with cache artifact sizes
+dvcli build abc123xyz -i task-execution -v
+
+# Investigate a build failure: result + failures + task execution
+dvcli build abc123xyz -i result,failures,task-execution -v
 ```
 
 ## Configuration
@@ -119,7 +133,6 @@ Result
   Requested:     build
   Tags:          CI, main
   User:          ci-user
-  Host:          build-agent-01
 
 Deprecations (2)
   ├─ The BuildListener.buildStarted(Gradle) method has been deprecated
@@ -144,9 +157,27 @@ Tests (95 passed, 3 failed, 2 skipped)
 
   ✗ Failed Tests:
     1. com.example.MyTest > testSomething (120ms)
-       Expected true but was false
     2. com.example.OtherTest > testFeature (85ms)
-       NullPointerException: value cannot be null
+
+Task Execution (350 tasks, 62% avoidance)
+──────────────────────────────────────────
+  Build time:       2m 15s
+  Task execution:   1m 48s (effective), 12m 30s (serial)
+  Parallelism:      6.9x serialization factor
+
+  Avoided:    218 tasks  (saved 8m 45s)
+    • Up-to-date:   6m 12s
+    • Local cache:  1m 30s
+    • Remote cache: 1m 3s
+  Executed:   132 tasks
+
+  ▸ Breakdown:
+      218  UP-TO-DATE
+       45  FROM-CACHE (local)
+       12  FROM-CACHE (remote)
+       75  EXECUTED (cacheable)
+
+  [Use --verbose for per-task details]
 ```
 
 ### JSON
@@ -180,6 +211,25 @@ dvcli build abc123xyz -o json
       "passRate": 95.0
     },
     "tests": [...]
+  },
+  "taskExecution": {
+    "summary": {
+      "totalTasks": 350,
+      "avoidedTasks": 218,
+      "executedTasks": 132,
+      "buildTimeMs": 135000,
+      "serialTaskExecutionTimeMs": 750000,
+      "effectiveTaskExecutionTimeMs": 108000,
+      "serializationFactor": 6.9
+    },
+    "avoidanceSavings": {
+      "totalMs": 525000,
+      "upToDateMs": 372000,
+      "localBuildCacheMs": 90000,
+      "remoteBuildCacheMs": 63000,
+      "ratio": 0.62
+    },
+    "tasks": [...]
   }
 }
 ```
@@ -219,8 +269,8 @@ dvcli completions powershell >> $PROFILE
 - `GET /api/builds/{id}` - Validate build exists, check build tool type
 - `GET /api/builds/{id}/gradle-attributes` - Build result information
 - `GET /api/builds/{id}/gradle-deprecations` - Deprecation warnings
-- `GET /api/builds/{id}/gradle-tests` - Test execution results
-- `GET /api/builds/{id}/gradle-build-cache-performance` - (future)
+- `GET /api/tests/build/{id}` - Test execution results
+- `GET /api/builds/{id}/gradle-build-cache-performance` - Task execution and cache performance
 
 ## Requirements
 

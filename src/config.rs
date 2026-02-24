@@ -7,6 +7,7 @@
 //! 4. Built-in defaults (lowest)
 
 use crate::error::{Error, Result};
+use crate::models::TestOutcome;
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
@@ -78,6 +79,8 @@ pub struct Config {
     pub verbose: bool,
     /// Request timeout in seconds.
     pub timeout: u64,
+    /// Filter test results by these outcomes (server-side). Empty means all.
+    pub test_outcomes: Vec<TestOutcome>,
 }
 
 /// Output format for the CLI.
@@ -125,6 +128,8 @@ pub struct IncludeOptions {
     pub failures: bool,
     /// Include test execution results.
     pub tests: bool,
+    /// Include task execution / build cache performance data.
+    pub task_execution: bool,
 }
 
 impl IncludeOptions {
@@ -135,6 +140,7 @@ impl IncludeOptions {
             deprecations: true,
             failures: true,
             tests: true,
+            task_execution: true,
         }
     }
 
@@ -154,10 +160,11 @@ impl IncludeOptions {
                 "deprecations" => opts.deprecations = true,
                 "failures" => opts.failures = true,
                 "tests" => opts.tests = true,
+                "task-execution" => opts.task_execution = true,
                 "all" => return Ok(Self::all()),
                 other if !other.is_empty() => {
                     return Err(format!(
-                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, all",
+                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, task-execution, all",
                         other
                     ));
                 }
@@ -166,7 +173,12 @@ impl IncludeOptions {
         }
 
         // If nothing was specified, include everything
-        if !opts.result && !opts.deprecations && !opts.failures && !opts.tests {
+        if !opts.result
+            && !opts.deprecations
+            && !opts.failures
+            && !opts.tests
+            && !opts.task_execution
+        {
             return Ok(Self::all());
         }
 
@@ -175,7 +187,7 @@ impl IncludeOptions {
 
     /// Returns true if any option is enabled.
     pub fn any(&self) -> bool {
-        self.result || self.deprecations || self.failures || self.tests
+        self.result || self.deprecations || self.failures || self.tests || self.task_execution
     }
 }
 
@@ -189,6 +201,7 @@ pub struct ConfigBuilder {
     verbose: Option<bool>,
     timeout: Option<u64>,
     config_file_path: Option<PathBuf>,
+    test_outcomes: Vec<TestOutcome>,
 }
 
 impl ConfigBuilder {
@@ -251,6 +264,12 @@ impl ConfigBuilder {
         self
     }
 
+    /// Set the test outcome filters.
+    pub fn test_outcomes(mut self, outcomes: Vec<TestOutcome>) -> Self {
+        self.test_outcomes = outcomes;
+        self
+    }
+
     /// Build the resolved configuration by merging all sources.
     pub fn build(self) -> Result<Config> {
         // Load config file
@@ -301,6 +320,7 @@ impl ConfigBuilder {
             include,
             verbose,
             timeout,
+            test_outcomes: self.test_outcomes,
         })
     }
 }
@@ -316,6 +336,7 @@ mod tests {
         assert!(opts.deprecations);
         assert!(opts.failures);
         assert!(opts.tests);
+        assert!(opts.task_execution);
     }
 
     #[test]
@@ -325,6 +346,7 @@ mod tests {
         assert!(!opts.deprecations);
         assert!(!opts.failures);
         assert!(!opts.tests);
+        assert!(!opts.task_execution);
     }
 
     #[test]
@@ -334,6 +356,7 @@ mod tests {
         assert!(!opts.deprecations);
         assert!(opts.failures);
         assert!(!opts.tests);
+        assert!(!opts.task_execution);
     }
 
     #[test]
@@ -343,6 +366,7 @@ mod tests {
         assert!(!opts.deprecations);
         assert!(!opts.failures);
         assert!(opts.tests);
+        assert!(!opts.task_execution);
     }
 
     #[test]
@@ -352,6 +376,17 @@ mod tests {
         assert!(!opts.deprecations);
         assert!(!opts.failures);
         assert!(opts.tests);
+        assert!(!opts.task_execution);
+    }
+
+    #[test]
+    fn test_include_options_parse_task_execution() {
+        let opts = IncludeOptions::parse("task-execution").unwrap();
+        assert!(!opts.result);
+        assert!(!opts.deprecations);
+        assert!(!opts.failures);
+        assert!(!opts.tests);
+        assert!(opts.task_execution);
     }
 
     #[test]
@@ -362,6 +397,7 @@ mod tests {
         assert!(opts.deprecations);
         assert!(opts.failures);
         assert!(opts.tests);
+        assert!(opts.task_execution);
     }
 
     #[test]

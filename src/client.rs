@@ -2,7 +2,7 @@
 
 use crate::config::IncludeOptions;
 use crate::error::{Error, Result};
-use crate::models::{Build, GradleAttributes, GradleDeprecations, GradleFailures, GradleTests};
+use crate::models::{Build, GradleAttributes, GradleBuildCachePerformance, GradleDeprecations, GradleFailures, GradleTests, TestOutcome};
 use reqwest::{Client, StatusCode};
 use std::time::Duration;
 use url::Url;
@@ -90,14 +90,45 @@ impl DevelocityClient {
         self.get_json(url, build_id).await
     }
 
+    /// Get Gradle build cache performance (task execution timeline).
+    pub async fn get_gradle_build_cache_performance(
+        &self,
+        build_id: &str,
+    ) -> Result<GradleBuildCachePerformance> {
+        let url = self
+            .base_url
+            .join(&format!(
+                "api/builds/{}/gradle-build-cache-performance",
+                build_id
+            ))
+            .map_err(Error::InvalidUrl)?;
+
+        self.get_json(url, build_id).await
+    }
+
     /// Get Gradle test results.
     ///
     /// Returns `Ok(None)` if tests are not available (404/403).
-    pub async fn get_gradle_tests(&self, build_id: &str) -> Result<Option<GradleTests>> {
-        let url = self
+    /// If `test_outcomes` is non-empty, only tests matching those outcomes are returned
+    /// (server-side filtering via `testOutcomes` query parameter).
+    pub async fn get_gradle_tests(
+        &self,
+        build_id: &str,
+        test_outcomes: &[TestOutcome],
+    ) -> Result<Option<GradleTests>> {
+        let mut url = self
             .base_url
-            .join(&format!("api/builds/{}/gradle-tests", build_id))
+            .join(&format!("api/tests/build/{}", build_id))
             .map_err(Error::InvalidUrl)?;
+
+        // Append testOutcomes query params (exploded array: testOutcomes=failed&testOutcomes=flaky)
+        if !test_outcomes.is_empty() {
+            let mut query_pairs = url.query_pairs_mut();
+            for outcome in test_outcomes {
+                query_pairs.append_pair("testOutcomes", &outcome.to_string());
+            }
+            drop(query_pairs);
+        }
 
         match self.get_json_optional(url, build_id).await {
             Ok(tests) => Ok(Some(tests)),
@@ -112,6 +143,7 @@ impl DevelocityClient {
         &self,
         build_id: &str,
         include: &IncludeOptions,
+        test_outcomes: &[TestOutcome],
     ) -> Result<GradleBuildDetails> {
         // First, validate the build exists and is a Gradle build
         let build = self.get_build(build_id).await?;
@@ -124,7 +156,7 @@ impl DevelocityClient {
         }
 
         // Fetch requested data in parallel
-        let (attributes, deprecations, failures, tests) = tokio::join!(
+        let (attributes, deprecations, failures, tests, build_cache_performance) = tokio::join!(
             async {
                 if include.result {
                     Some(self.get_gradle_attributes(build_id).await)
@@ -148,7 +180,14 @@ impl DevelocityClient {
             },
             async {
                 if include.tests {
-                    Some(self.get_gradle_tests(build_id).await)
+                    Some(self.get_gradle_tests(build_id, test_outcomes).await)
+                } else {
+                    None
+                }
+            },
+            async {
+                if include.task_execution {
+                    Some(self.get_gradle_build_cache_performance(build_id).await)
                 } else {
                     None
                 }
@@ -167,6 +206,7 @@ impl DevelocityClient {
             deprecations: deprecations.transpose()?,
             failures: failures.transpose()?,
             tests,
+            build_cache_performance: build_cache_performance.transpose()?,
         })
     }
 
@@ -238,4 +278,6 @@ pub struct GradleBuildDetails {
     pub failures: Option<GradleFailures>,
     /// Test execution results (if requested).
     pub tests: Option<GradleTests>,
+    /// Build cache performance / task execution data (if requested).
+    pub build_cache_performance: Option<GradleBuildCachePerformance>,
 }

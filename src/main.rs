@@ -6,6 +6,7 @@ use colored::Colorize;
 use dvcli::client::DevelocityClient;
 use dvcli::config::{ConfigBuilder, IncludeOptions, OutputFormat};
 use dvcli::error::{exit_codes, Error};
+use dvcli::models::parse_test_outcomes;
 use dvcli::output::{self, BuildOutput};
 use std::io;
 use std::path::PathBuf;
@@ -41,13 +42,17 @@ enum Commands {
         #[arg(short, long, default_value = "human")]
         output: String,
 
-        /// Data to include: result, deprecations, failures, tests, all
+        /// Data to include: result, deprecations, failures, tests, task-execution, all
         #[arg(short, long, default_value = "all")]
         include: String,
 
         /// Show verbose output (stacktraces, etc.)
         #[arg(short, long)]
         verbose: bool,
+
+        /// Filter test results by outcome (comma-separated: passed, failed, skipped, flaky, notSelected)
+        #[arg(long, value_name = "OUTCOMES")]
+        test_outcomes: Option<String>,
 
         /// Request timeout in seconds
         #[arg(long, default_value = "30")]
@@ -88,6 +93,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
             output,
             include,
             verbose,
+            test_outcomes,
             timeout,
             config,
         } => {
@@ -98,6 +104,12 @@ async fn run(cli: Cli) -> Result<(), Error> {
             // Parse include options
             let include_opts = IncludeOptions::parse(&include).map_err(Error::Parse)?;
 
+            // Parse test outcome filters
+            let test_outcome_filters = match &test_outcomes {
+                Some(s) => parse_test_outcomes(s).map_err(Error::Parse)?,
+                None => Vec::new(),
+            };
+
             // Build configuration
             let cfg = ConfigBuilder::new()
                 .server(server)
@@ -105,6 +117,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
                 .output_format(Some(output_format))
                 .include(Some(include_opts.clone()))
                 .verbose(verbose)
+                .test_outcomes(test_outcome_filters)
                 .timeout(Some(timeout))
                 .config_file(config)
                 .build()?;
@@ -114,7 +127,7 @@ async fn run(cli: Cli) -> Result<(), Error> {
 
             // Fetch build details
             let details = client
-                .get_gradle_build_details(&build_id, &cfg.include)
+                .get_gradle_build_details(&build_id, &cfg.include, &cfg.test_outcomes)
                 .await?;
 
             // Generate output
