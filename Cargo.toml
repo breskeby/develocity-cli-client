@@ -1,6 +1,6 @@
 [package]
 name = "dvcli"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "CLI client for querying Gradle build information from Develocity"
 authors = ["Rene Groeschke <rene@breskeby.com>"]
