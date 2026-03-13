@@ -2,7 +2,7 @@
 
 use crate::config::IncludeOptions;
 use crate::error::{Error, Result};
-use crate::models::{Build, GradleAttributes, GradleBuildCachePerformance, GradleDeprecations, GradleFailures, GradleTests, TestOutcome};
+use crate::models::{Build, GradleAttributes, GradleBuildCachePerformance, GradleDeprecations, GradleFailures, GradleNetworkActivity, GradleTests, TestOutcome};
 use reqwest::{Client, StatusCode};
 use std::time::Duration;
 use url::Url;
@@ -90,6 +90,27 @@ impl DevelocityClient {
         self.get_json(url, build_id).await
     }
 
+    /// Get Gradle network activity.
+    ///
+    /// Returns `Ok(None)` if network activity is not available (404/403).
+    /// Requires Gradle 3.5+ with Develocity Gradle Plugin 1.6+.
+    pub async fn get_gradle_network_activity(
+        &self,
+        build_id: &str,
+    ) -> Result<Option<GradleNetworkActivity>> {
+        let url = self
+            .base_url
+            .join(&format!("api/builds/{}/gradle-network-activity", build_id))
+            .map_err(Error::InvalidUrl)?;
+
+        match self.get_json_optional(url, build_id).await {
+            Ok(activity) => Ok(Some(activity)),
+            Err(Error::BuildNotFound(_)) => Ok(None),
+            Err(Error::Forbidden) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Get Gradle build cache performance (task execution timeline).
     pub async fn get_gradle_build_cache_performance(
         &self,
@@ -156,46 +177,58 @@ impl DevelocityClient {
         }
 
         // Fetch requested data in parallel
-        let (attributes, deprecations, failures, tests, build_cache_performance) = tokio::join!(
-            async {
-                if include.result {
-                    Some(self.get_gradle_attributes(build_id).await)
-                } else {
-                    None
+        let (attributes, deprecations, failures, tests, build_cache_performance, network_activity) =
+            tokio::join!(
+                async {
+                    if include.result {
+                        Some(self.get_gradle_attributes(build_id).await)
+                    } else {
+                        None
+                    }
+                },
+                async {
+                    if include.deprecations {
+                        Some(self.get_gradle_deprecations(build_id).await)
+                    } else {
+                        None
+                    }
+                },
+                async {
+                    if include.failures {
+                        Some(self.get_gradle_failures(build_id).await)
+                    } else {
+                        None
+                    }
+                },
+                async {
+                    if include.tests {
+                        Some(self.get_gradle_tests(build_id, test_outcomes).await)
+                    } else {
+                        None
+                    }
+                },
+                async {
+                    if include.task_execution {
+                        Some(self.get_gradle_build_cache_performance(build_id).await)
+                    } else {
+                        None
+                    }
+                },
+                async {
+                    if include.network_activity {
+                        Some(self.get_gradle_network_activity(build_id).await)
+                    } else {
+                        None
+                    }
                 }
-            },
-            async {
-                if include.deprecations {
-                    Some(self.get_gradle_deprecations(build_id).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if include.failures {
-                    Some(self.get_gradle_failures(build_id).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if include.tests {
-                    Some(self.get_gradle_tests(build_id, test_outcomes).await)
-                } else {
-                    None
-                }
-            },
-            async {
-                if include.task_execution {
-                    Some(self.get_gradle_build_cache_performance(build_id).await)
-                } else {
-                    None
-                }
-            }
-        );
+            );
 
-        // For tests, we flatten Option<Result<Option<T>>> to Option<T>
+        // For tests/network_activity, we flatten Option<Result<Option<T>>> to Option<T>
         let tests = match tests {
+            Some(result) => result?,
+            None => None,
+        };
+        let network_activity = match network_activity {
             Some(result) => result?,
             None => None,
         };
@@ -207,6 +240,7 @@ impl DevelocityClient {
             failures: failures.transpose()?,
             tests,
             build_cache_performance: build_cache_performance.transpose()?,
+            network_activity,
         })
     }
 
@@ -280,4 +314,6 @@ pub struct GradleBuildDetails {
     pub tests: Option<GradleTests>,
     /// Build cache performance / task execution data (if requested).
     pub build_cache_performance: Option<GradleBuildCachePerformance>,
+    /// Network activity data (if requested).
+    pub network_activity: Option<GradleNetworkActivity>,
 }

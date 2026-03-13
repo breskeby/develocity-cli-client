@@ -5,7 +5,7 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 ## Features
 
 - Query Gradle build scan details from Develocity REST API
-- Display build results, deprecations, failures, test details, and task execution performance
+- Display build results, deprecations, failures, test details, task execution performance, and network activity
 - Filter test results by outcome (passed, failed, skipped, flaky, notSelected)
 - Human-readable colored output or JSON for scripting
 - Configurable via CLI arguments, environment variables, or config file
@@ -34,6 +34,38 @@ cargo build --release
 cp target/release/dvcli /usr/local/bin/
 ```
 
+### Pre-built binaries (Linux)
+
+See [Releasing](#releasing) to build and publish tarballs. Consumers (e.g. Docker) can then use `DVCLI_RELEASE_BASE_URL` to download instead of building from source.
+
+## Releasing
+
+To build Linux binaries for GitHub Releases (used by the hachi-worker Docker image and others):
+
+1. **From macOS:** install [cross](https://github.com/cross-rs/cross) so you can cross-compile to Linux:
+   ```bash
+   cargo install cross
+   ```
+
+2. **Build and package:**
+   ```bash
+   ./scripts/build-release-binaries.sh
+   ```
+   This reads the version from `Cargo.toml`, builds for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`, and writes:
+   - `dist/dvcli-<version>-x86_64-unknown-linux-gnu.tar.gz`
+   - `dist/dvcli-<version>-aarch64-unknown-linux-gnu.tar.gz`  
+   Each tarball contains a single binary named `dvcli`.
+
+3. **Create a GitHub release and upload the tarballs:**
+   ```bash
+   gh release create v0.3.0 dist/dvcli-0.3.0-*.tar.gz
+   ```
+
+4. **Consumers** can then use the pre-built binary, e.g. in Docker:
+   ```bash
+   docker build --build-arg DVCLI_RELEASE_BASE_URL=https://github.com/breskeby/develocity-cli-client/releases/download/v0.3.0 -f docker/Dockerfile .
+   ```
+
 ## Usage
 
 ```bash
@@ -53,7 +85,7 @@ dvcli build <BUILD_SCAN_ID> [OPTIONS]
 | `-s, --server <URL>` | `DEVELOCITY_SERVER` | Develocity server URL | - |
 | `-t, --token <TOKEN>` | `DEVELOCITY_API_KEY` | Access key for authentication | - |
 | `-o, --output <FORMAT>` | - | Output format: `json`, `human` | `human` |
-| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `task-execution`, `all` | `all` |
+| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `task-execution`, `network-activity`, `all` | `all` |
 | `-v, --verbose` | - | Show stacktraces, per-task details, and verbose output | false |
 | `--test-outcomes <OUTCOMES>` | - | Filter tests by outcome (comma-separated): `passed`, `failed`, `skipped`, `flaky`, `notSelected` | - |
 | `--timeout <SECS>` | - | Request timeout in seconds | `30` |
@@ -93,6 +125,12 @@ dvcli build abc123xyz -i task-execution
 
 # Show per-task details with cache artifact sizes
 dvcli build abc123xyz -i task-execution -v
+
+# Show network activity (downloads, repositories, HTTP methods)
+dvcli build abc123xyz -i network-activity
+
+# Show all repositories (not just top 5)
+dvcli build abc123xyz -i network-activity -v
 
 # Investigate a build failure: result + failures + task execution
 dvcli build abc123xyz -i result,failures,task-execution -v
@@ -269,8 +307,10 @@ dvcli completions powershell >> $PROFILE
 - `GET /api/builds/{id}` - Validate build exists, check build tool type
 - `GET /api/builds/{id}/gradle-attributes` - Build result information
 - `GET /api/builds/{id}/gradle-deprecations` - Deprecation warnings
+- `GET /api/builds/{id}/gradle-failures` - Build and test failures
 - `GET /api/tests/build/{id}` - Test execution results
 - `GET /api/builds/{id}/gradle-build-cache-performance` - Task execution and cache performance
+- `GET /api/builds/{id}/gradle-network-activity` - Network activity (requires Gradle 3.5+ with Develocity Gradle Plugin 1.6+)
 
 ## Requirements
 

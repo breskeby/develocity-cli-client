@@ -130,6 +130,8 @@ pub struct IncludeOptions {
     pub tests: bool,
     /// Include task execution / build cache performance data.
     pub task_execution: bool,
+    /// Include network activity data.
+    pub network_activity: bool,
 }
 
 impl IncludeOptions {
@@ -141,6 +143,7 @@ impl IncludeOptions {
             failures: true,
             tests: true,
             task_execution: true,
+            network_activity: true,
         }
     }
 
@@ -161,10 +164,11 @@ impl IncludeOptions {
                 "failures" => opts.failures = true,
                 "tests" => opts.tests = true,
                 "task-execution" => opts.task_execution = true,
+                "network-activity" => opts.network_activity = true,
                 "all" => return Ok(Self::all()),
                 other if !other.is_empty() => {
                     return Err(format!(
-                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, task-execution, all",
+                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, task-execution, network-activity, all",
                         other
                     ));
                 }
@@ -178,6 +182,7 @@ impl IncludeOptions {
             && !opts.failures
             && !opts.tests
             && !opts.task_execution
+            && !opts.network_activity
         {
             return Ok(Self::all());
         }
@@ -187,7 +192,12 @@ impl IncludeOptions {
 
     /// Returns true if any option is enabled.
     pub fn any(&self) -> bool {
-        self.result || self.deprecations || self.failures || self.tests || self.task_execution
+        self.result
+            || self.deprecations
+            || self.failures
+            || self.tests
+            || self.task_execution
+            || self.network_activity
     }
 }
 
@@ -337,6 +347,7 @@ mod tests {
         assert!(opts.failures);
         assert!(opts.tests);
         assert!(opts.task_execution);
+        assert!(opts.network_activity);
     }
 
     #[test]
@@ -390,6 +401,17 @@ mod tests {
     }
 
     #[test]
+    fn test_include_options_parse_network_activity() {
+        let opts = IncludeOptions::parse("network-activity").unwrap();
+        assert!(!opts.result);
+        assert!(!opts.deprecations);
+        assert!(!opts.failures);
+        assert!(!opts.tests);
+        assert!(!opts.task_execution);
+        assert!(opts.network_activity);
+    }
+
+    #[test]
     fn test_include_options_parse_empty() {
         let opts = IncludeOptions::parse("").unwrap();
         // Empty means all
@@ -398,6 +420,7 @@ mod tests {
         assert!(opts.failures);
         assert!(opts.tests);
         assert!(opts.task_execution);
+        assert!(opts.network_activity);
     }
 
     #[test]

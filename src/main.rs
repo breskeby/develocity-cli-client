@@ -42,7 +42,7 @@ enum Commands {
         #[arg(short, long, default_value = "human")]
         output: String,
 
-        /// Data to include: result, deprecations, failures, tests, task-execution, all
+        /// Data to include: result, deprecations, failures, tests, task-execution, network-activity, all
         #[arg(short, long, default_value = "all")]
         include: String,
 

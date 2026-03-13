@@ -2,8 +2,8 @@
 
 use crate::output::{
     format_duration, BuildFailureOutput, BuildOutput, DeprecationOutput, FailuresOutput,
-    ResultOutput, TaskEntryOutput, TaskExecutionOutput, TestExecutionOutput, TestFailureOutput,
-    TestsOutput,
+    NetworkActivityEntryOutput, NetworkActivityOutput, ResultOutput, TaskEntryOutput,
+    TaskExecutionOutput, TestExecutionOutput, TestFailureOutput, TestsOutput,
 };
 use colored::Colorize;
 
@@ -48,6 +48,12 @@ pub fn format(output: &BuildOutput, verbose: bool) -> String {
     // Task execution section
     if let Some(ref task_execution) = output.task_execution {
         lines.extend(format_task_execution(task_execution, verbose));
+        lines.push(String::new());
+    }
+
+    // Network activity section
+    if let Some(ref network_activity) = output.network_activity {
+        lines.extend(format_network_activity(network_activity, verbose));
         lines.push(String::new());
     }
 
@@ -672,6 +678,88 @@ fn format_task_entry(task: &TaskEntryOutput) -> Vec<String> {
     }
 
     lines
+}
+
+fn format_network_activity(activity: &NetworkActivityOutput, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(format!(
+        "{} Network Activity ({} requests, {})",
+        "🌐".dimmed(),
+        activity.network_request_count,
+        format_bytes(activity.file_download_size_bytes),
+    ));
+    lines.push("─".repeat(64));
+
+    lines.push(format!(
+        "   Requests:     {}",
+        activity.network_request_count
+    ));
+    lines.push(format!(
+        "   Downloads:    {} files, {}",
+        activity.file_download_count,
+        format_bytes(activity.file_download_size_bytes),
+    ));
+    lines.push(format!(
+        "   Time:         {} wall-clock, {} serial",
+        format_duration(activity.wall_clock_network_request_time_ms),
+        format_duration(activity.serial_network_request_time_ms),
+    ));
+
+    // Per-method breakdown
+    if !activity.methods.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("   {} By method:", "▸".dimmed()));
+        for entry in &activity.methods {
+            lines.extend(format_network_entry(entry));
+        }
+    }
+
+    // Per-repository breakdown (always show)
+    if !activity.repositories.is_empty() {
+        lines.push(String::new());
+        lines.push(format!("   {} By repository:", "▸".dimmed()));
+        let repos_to_show = if verbose {
+            activity.repositories.as_slice()
+        } else {
+            &activity.repositories[..activity.repositories.len().min(5)]
+        };
+        for entry in repos_to_show {
+            lines.extend(format_network_entry(entry));
+        }
+        if !verbose && activity.repositories.len() > 5 {
+            lines.push(format!(
+                "   {}",
+                format!(
+                    "[{} more repositories — use --verbose to see all]",
+                    activity.repositories.len() - 5
+                )
+                .dimmed()
+            ));
+        }
+    }
+
+    lines
+}
+
+fn format_network_entry(entry: &NetworkActivityEntryOutput) -> Vec<String> {
+    let mut parts = vec![format!(
+        "{} reqs",
+        entry.network_request_count.to_string().cyan()
+    )];
+    if entry.file_download_count > 0 {
+        parts.push(format!(
+            "{} files ({})",
+            entry.file_download_count,
+            format_bytes(entry.file_download_size_bytes)
+        ));
+    }
+    vec![format!(
+        "      {} {}: {}",
+        "•".dimmed(),
+        entry.name,
+        parts.join(", "),
+    )]
 }
 
 /// Format bytes into a human-readable string.

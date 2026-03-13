@@ -258,6 +258,8 @@ dvcli build $(echo "https://gradle-enterprise.example.com/s/abc123xyz" | sed 's|
 | `deprecations` | Deprecated API usage with removal versions and migration advice |
 | `failures` | Build failures and test failures with error messages |
 | `tests` | Complete test execution results (summary + individual test details) |
+| `task-execution` | Task cache avoidance, build timing, parallelism, per-task breakdown |
+| `network-activity` | HTTP requests, file downloads, timing by method and repository |
 | `all` | Everything (default if `-i` is not specified) |
 
 **Combine options** with commas: `-i result,failures,tests`
@@ -268,11 +270,14 @@ Add `-v` or `--verbose` to show:
 - Full stacktraces for failures
 - Test stdout/stderr output
 - Detailed error contexts
+- Per-task details in task execution (cache keys, artifact sizes, types)
+- All repositories in network activity (default shows top 5)
 
 This is especially useful for:
 - Debugging test failures
 - Understanding compilation errors
 - Investigating runtime exceptions
+- Auditing dependency downloads and build cache usage
 
 ## Use Case Guide
 
@@ -284,6 +289,8 @@ This is especially useful for:
 | "Show test results" | `dvcli build <ID> -i tests` |
 | "What's the build status?" | `dvcli build <ID> -i result` |
 | "Any deprecation warnings?" | `dvcli build <ID> -i deprecations` |
+| "How did the build cache perform?" | `dvcli build <ID> -i task-execution` |
+| "What was downloaded during the build?" | `dvcli build <ID> -i network-activity` |
 | "Give me JSON output" | `dvcli build <ID> -o json` |
 | "Show failures with stacktraces" | `dvcli build <ID> -i failures -v` |
 | "Analyze this build scan: https://..." | Extract ID, then `dvcli build <ID>` |
@@ -335,7 +342,10 @@ The dvcli tool uses these Develocity API endpoints:
 - `GET /api/builds/{id}` - Validate build exists
 - `GET /api/builds/{id}/gradle-attributes` - Build result info
 - `GET /api/builds/{id}/gradle-deprecations` - Deprecation warnings
-- `GET /api/builds/{id}/gradle-tests` - Test execution results
+- `GET /api/builds/{id}/gradle-failures` - Build and test failures
+- `GET /api/tests/build/{id}` - Test execution results
+- `GET /api/builds/{id}/gradle-build-cache-performance` - Task execution and cache performance
+- `GET /api/builds/{id}/gradle-network-activity` - Network activity
 
 ## Examples
 

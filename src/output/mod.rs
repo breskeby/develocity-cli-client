@@ -6,7 +6,7 @@ pub mod json;
 use crate::client::GradleBuildDetails;
 use crate::models::{
     GradleAttributes, GradleBuildCachePerformance, GradleDeprecationEntry, GradleFailures,
-    GradleTests,
+    GradleNetworkActivity, GradleTests,
 };
 use chrono::{TimeZone, Utc};
 use serde::Serialize;
@@ -34,6 +34,9 @@ pub struct BuildOutput {
     /// Task execution / build cache performance data (if requested).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_execution: Option<TaskExecutionOutput>,
+    /// Network activity data (if requested).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network_activity: Option<NetworkActivityOutput>,
 }
 
 /// Build result output.
@@ -277,6 +280,44 @@ pub struct TaskEntryOutput {
     pub non_cacheability_reason: Option<String>,
 }
 
+/// Network activity output.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkActivityOutput {
+    /// Total number of network requests.
+    pub network_request_count: i64,
+    /// Serial network request time in milliseconds.
+    pub serial_network_request_time_ms: i64,
+    /// Wall-clock network request time in milliseconds.
+    pub wall_clock_network_request_time_ms: i64,
+    /// Total number of file downloads.
+    pub file_download_count: i64,
+    /// Total file download size in bytes.
+    pub file_download_size_bytes: i64,
+    /// Per-HTTP-method metrics.
+    pub methods: Vec<NetworkActivityEntryOutput>,
+    /// Per-repository metrics.
+    pub repositories: Vec<NetworkActivityEntryOutput>,
+}
+
+/// Network activity metrics for a named entry (method or repository).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NetworkActivityEntryOutput {
+    /// Name of the entry (HTTP method or repository URL).
+    pub name: String,
+    /// Number of network requests.
+    pub network_request_count: i64,
+    /// Serial network request time in milliseconds.
+    pub serial_network_request_time_ms: i64,
+    /// Wall-clock network request time in milliseconds.
+    pub wall_clock_network_request_time_ms: i64,
+    /// Number of file downloads.
+    pub file_download_count: i64,
+    /// File download size in bytes.
+    pub file_download_size_bytes: i64,
+}
+
 impl BuildOutput {
     /// Create a BuildOutput from GradleBuildDetails.
     pub fn from_details(
@@ -301,6 +342,10 @@ impl BuildOutput {
             .build_cache_performance
             .map(TaskExecutionOutput::from_performance);
 
+        let network_activity = details
+            .network_activity
+            .map(NetworkActivityOutput::from_activity);
+
         Self {
             build_id: details.build.id,
             build_scan_url,
@@ -309,6 +354,7 @@ impl BuildOutput {
             failures,
             tests,
             task_execution,
+            network_activity,
         }
     }
 }
@@ -521,6 +567,48 @@ impl TaskExecutionOutput {
             summary,
             avoidance_savings,
             tasks,
+        }
+    }
+}
+
+impl NetworkActivityOutput {
+    fn from_activity(activity: GradleNetworkActivity) -> Self {
+        let mut methods: Vec<NetworkActivityEntryOutput> = activity
+            .methods
+            .into_iter()
+            .map(|(name, m)| NetworkActivityEntryOutput {
+                name,
+                network_request_count: m.network_request_count,
+                serial_network_request_time_ms: m.serial_network_request_time,
+                wall_clock_network_request_time_ms: m.wall_clock_network_request_time,
+                file_download_count: m.file_download_count,
+                file_download_size_bytes: m.file_download_size,
+            })
+            .collect();
+        methods.sort_by(|a, b| b.network_request_count.cmp(&a.network_request_count));
+
+        let mut repositories: Vec<NetworkActivityEntryOutput> = activity
+            .repositories
+            .into_iter()
+            .map(|(name, m)| NetworkActivityEntryOutput {
+                name,
+                network_request_count: m.network_request_count,
+                serial_network_request_time_ms: m.serial_network_request_time,
+                wall_clock_network_request_time_ms: m.wall_clock_network_request_time,
+                file_download_count: m.file_download_count,
+                file_download_size_bytes: m.file_download_size,
+            })
+            .collect();
+        repositories.sort_by(|a, b| b.network_request_count.cmp(&a.network_request_count));
+
+        Self {
+            network_request_count: activity.network_request_count,
+            serial_network_request_time_ms: activity.serial_network_request_time,
+            wall_clock_network_request_time_ms: activity.wall_clock_network_request_time,
+            file_download_count: activity.file_download_count,
+            file_download_size_bytes: activity.file_download_size,
+            methods,
+            repositories,
         }
     }
 }
