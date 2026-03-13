@@ -5,7 +5,7 @@ An AI agent friendly command-line tool for querying Gradle build information fro
 ## Features
 
 - Query Gradle build scan details from Develocity REST API
-- Display build results, deprecations, failures, test details, task execution performance, and network activity
+- Display build results, deprecations, failures, test details, task execution performance, network activity, and resolved dependencies
 - Filter test results by outcome (passed, failed, skipped, flaky, notSelected)
 - Human-readable colored output or JSON for scripting
 - Configurable via CLI arguments, environment variables, or config file
@@ -85,7 +85,7 @@ dvcli build <BUILD_SCAN_ID> [OPTIONS]
 | `-s, --server <URL>` | `DEVELOCITY_SERVER` | Develocity server URL | - |
 | `-t, --token <TOKEN>` | `DEVELOCITY_API_KEY` | Access key for authentication | - |
 | `-o, --output <FORMAT>` | - | Output format: `json`, `human` | `human` |
-| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `task-execution`, `network-activity`, `all` | `all` |
+| `-i, --include <ITEMS>` | - | Data to include: `result`, `deprecations`, `failures`, `tests`, `task-execution`, `network-activity`, `dependencies`, `all` | `all` |
 | `-v, --verbose` | - | Show stacktraces, per-task details, and verbose output | false |
 | `--test-outcomes <OUTCOMES>` | - | Filter tests by outcome (comma-separated): `passed`, `failed`, `skipped`, `flaky`, `notSelected` | - |
 | `--timeout <SECS>` | - | Request timeout in seconds | `30` |
@@ -131,6 +131,12 @@ dvcli build abc123xyz -i network-activity
 
 # Show all repositories (not just top 5)
 dvcli build abc123xyz -i network-activity -v
+
+# Show resolved dependencies (grouped by type)
+dvcli build abc123xyz -i dependencies
+
+# Show dependencies with repository and purl details
+dvcli build abc123xyz -i dependencies -v
 
 # Investigate a build failure: result + failures + task execution
 dvcli build abc123xyz -i result,failures,task-execution -v
@@ -311,6 +317,7 @@ dvcli completions powershell >> $PROFILE
 - `GET /api/tests/build/{id}` - Test execution results
 - `GET /api/builds/{id}/gradle-build-cache-performance` - Task execution and cache performance
 - `GET /api/builds/{id}/gradle-network-activity` - Network activity (requires Gradle 3.5+ with Develocity Gradle Plugin 1.6+)
+- `GET /api/builds/{id}/gradle-dependencies` - Resolved dependency list
 
 ## Requirements
 

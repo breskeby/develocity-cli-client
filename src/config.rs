@@ -132,6 +132,8 @@ pub struct IncludeOptions {
     pub task_execution: bool,
     /// Include network activity data.
     pub network_activity: bool,
+    /// Include resolved dependencies.
+    pub dependencies: bool,
 }
 
 impl IncludeOptions {
@@ -144,6 +146,7 @@ impl IncludeOptions {
             tests: true,
             task_execution: true,
             network_activity: true,
+            dependencies: true,
         }
     }
 
@@ -165,10 +168,11 @@ impl IncludeOptions {
                 "tests" => opts.tests = true,
                 "task-execution" => opts.task_execution = true,
                 "network-activity" => opts.network_activity = true,
+                "dependencies" => opts.dependencies = true,
                 "all" => return Ok(Self::all()),
                 other if !other.is_empty() => {
                     return Err(format!(
-                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, task-execution, network-activity, all",
+                        "Invalid include option '{}'. Valid options: result, deprecations, failures, tests, task-execution, network-activity, dependencies, all",
                         other
                     ));
                 }
@@ -183,6 +187,7 @@ impl IncludeOptions {
             && !opts.tests
             && !opts.task_execution
             && !opts.network_activity
+            && !opts.dependencies
         {
             return Ok(Self::all());
         }
@@ -198,6 +203,7 @@ impl IncludeOptions {
             || self.tests
             || self.task_execution
             || self.network_activity
+            || self.dependencies
     }
 }
 
@@ -348,6 +354,7 @@ mod tests {
         assert!(opts.tests);
         assert!(opts.task_execution);
         assert!(opts.network_activity);
+        assert!(opts.dependencies);
     }
 
     #[test]
@@ -412,6 +419,18 @@ mod tests {
     }
 
     #[test]
+    fn test_include_options_parse_dependencies() {
+        let opts = IncludeOptions::parse("dependencies").unwrap();
+        assert!(!opts.result);
+        assert!(!opts.deprecations);
+        assert!(!opts.failures);
+        assert!(!opts.tests);
+        assert!(!opts.task_execution);
+        assert!(!opts.network_activity);
+        assert!(opts.dependencies);
+    }
+
+    #[test]
     fn test_include_options_parse_empty() {
         let opts = IncludeOptions::parse("").unwrap();
         // Empty means all
@@ -421,6 +440,7 @@ mod tests {
         assert!(opts.tests);
         assert!(opts.task_execution);
         assert!(opts.network_activity);
+        assert!(opts.dependencies);
     }
 
     #[test]

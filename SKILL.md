@@ -260,6 +260,7 @@ dvcli build $(echo "https://gradle-enterprise.example.com/s/abc123xyz" | sed 's|
 | `tests` | Complete test execution results (summary + individual test details) |
 | `task-execution` | Task cache avoidance, build timing, parallelism, per-task breakdown |
 | `network-activity` | HTTP requests, file downloads, timing by method and repository |
+| `dependencies` | Resolved dependencies grouped by type (e.g., maven); purl and repository details with `--verbose` |
 | `all` | Everything (default if `-i` is not specified) |
 
 **Combine options** with commas: `-i result,failures,tests`
@@ -272,6 +273,7 @@ Add `-v` or `--verbose` to show:
 - Detailed error contexts
 - Per-task details in task execution (cache keys, artifact sizes, types)
 - All repositories in network activity (default shows top 5)
+- Dependency purl and repository details (default shows top 20 per type)
 
 This is especially useful for:
 - Debugging test failures
@@ -291,6 +293,8 @@ This is especially useful for:
 | "Any deprecation warnings?" | `dvcli build <ID> -i deprecations` |
 | "How did the build cache perform?" | `dvcli build <ID> -i task-execution` |
 | "What was downloaded during the build?" | `dvcli build <ID> -i network-activity` |
+| "What dependencies does this build use?" | `dvcli build <ID> -i dependencies` |
+| "Show full dependency details (purl, repos)" | `dvcli build <ID> -i dependencies -v` |
 | "Give me JSON output" | `dvcli build <ID> -o json` |
 | "Show failures with stacktraces" | `dvcli build <ID> -i failures -v` |
 | "Analyze this build scan: https://..." | Extract ID, then `dvcli build <ID>` |
@@ -346,6 +350,7 @@ The dvcli tool uses these Develocity API endpoints:
 - `GET /api/tests/build/{id}` - Test execution results
 - `GET /api/builds/{id}/gradle-build-cache-performance` - Task execution and cache performance
 - `GET /api/builds/{id}/gradle-network-activity` - Network activity
+- `GET /api/builds/{id}/gradle-dependencies` - Resolved dependency list
 
 ## Examples
 

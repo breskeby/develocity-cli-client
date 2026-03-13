@@ -5,8 +5,8 @@ pub mod json;
 
 use crate::client::GradleBuildDetails;
 use crate::models::{
-    GradleAttributes, GradleBuildCachePerformance, GradleDeprecationEntry, GradleFailures,
-    GradleNetworkActivity, GradleTests,
+    GradleAttributes, GradleBuildCachePerformance, GradleDependencies, GradleDeprecationEntry,
+    GradleFailures, GradleNetworkActivity, GradleTests,
 };
 use chrono::{TimeZone, Utc};
 use serde::Serialize;
@@ -37,6 +37,9 @@ pub struct BuildOutput {
     /// Network activity data (if requested).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network_activity: Option<NetworkActivityOutput>,
+    /// Resolved dependencies (if requested).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<DependenciesOutput>,
 }
 
 /// Build result output.
@@ -318,6 +321,43 @@ pub struct NetworkActivityEntryOutput {
     pub file_download_size_bytes: i64,
 }
 
+/// Resolved dependencies output.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependenciesOutput {
+    /// Total number of resolved dependencies.
+    pub total: usize,
+    /// Individual dependency entries.
+    pub dependencies: Vec<DependencyOutput>,
+}
+
+/// A single resolved dependency.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DependencyOutput {
+    /// Package type (e.g., "maven").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dependency_type: Option<String>,
+    /// Package namespace (e.g., Maven group ID).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+    /// Package name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Package version.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Package URL (purl).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub purl: Option<String>,
+    /// Repository URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_url: Option<String>,
+    /// Resolution source (e.g., "remote", "localCache").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution_source: Option<String>,
+}
+
 impl BuildOutput {
     /// Create a BuildOutput from GradleBuildDetails.
     pub fn from_details(
@@ -346,6 +386,10 @@ impl BuildOutput {
             .network_activity
             .map(NetworkActivityOutput::from_activity);
 
+        let dependencies = details
+            .dependencies
+            .map(DependenciesOutput::from_dependencies);
+
         Self {
             build_id: details.build.id,
             build_scan_url,
@@ -355,6 +399,7 @@ impl BuildOutput {
             tests,
             task_execution,
             network_activity,
+            dependencies,
         }
     }
 }
@@ -610,6 +655,35 @@ impl NetworkActivityOutput {
             methods,
             repositories,
         }
+    }
+}
+
+impl DependenciesOutput {
+    fn from_dependencies(deps: GradleDependencies) -> Self {
+        let mut dependencies: Vec<DependencyOutput> = deps
+            .dependencies
+            .into_iter()
+            .map(|d| DependencyOutput {
+                dependency_type: d.dependency_type,
+                namespace: d.namespace,
+                name: d.name,
+                version: d.version,
+                purl: d.purl,
+                repository_url: d.repository.as_ref().and_then(|r| r.url.clone()),
+                resolution_source: d.repository.and_then(|r| r.resolution_source),
+            })
+            .collect();
+
+        // Sort by type, then namespace, then name for stable output
+        dependencies.sort_by(|a, b| {
+            a.dependency_type
+                .cmp(&b.dependency_type)
+                .then(a.namespace.cmp(&b.namespace))
+                .then(a.name.cmp(&b.name))
+        });
+
+        let total = dependencies.len();
+        Self { total, dependencies }
     }
 }
 

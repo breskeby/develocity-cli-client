@@ -1,9 +1,10 @@
 //! Human-readable colored terminal output formatter.
 
 use crate::output::{
-    format_duration, BuildFailureOutput, BuildOutput, DeprecationOutput, FailuresOutput,
-    NetworkActivityEntryOutput, NetworkActivityOutput, ResultOutput, TaskEntryOutput,
-    TaskExecutionOutput, TestExecutionOutput, TestFailureOutput, TestsOutput,
+    format_duration, BuildFailureOutput, BuildOutput, DependenciesOutput, DependencyOutput,
+    DeprecationOutput, FailuresOutput, NetworkActivityEntryOutput, NetworkActivityOutput,
+    ResultOutput, TaskEntryOutput, TaskExecutionOutput, TestExecutionOutput, TestFailureOutput,
+    TestsOutput,
 };
 use colored::Colorize;
 
@@ -54,6 +55,12 @@ pub fn format(output: &BuildOutput, verbose: bool) -> String {
     // Network activity section
     if let Some(ref network_activity) = output.network_activity {
         lines.extend(format_network_activity(network_activity, verbose));
+        lines.push(String::new());
+    }
+
+    // Dependencies section
+    if let Some(ref dependencies) = output.dependencies {
+        lines.extend(format_dependencies(dependencies, verbose));
         lines.push(String::new());
     }
 
@@ -760,6 +767,98 @@ fn format_network_entry(entry: &NetworkActivityEntryOutput) -> Vec<String> {
         entry.name,
         parts.join(", "),
     )]
+}
+
+fn format_dependencies(deps: &DependenciesOutput, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(format!(
+        "{} Dependencies ({})",
+        "📦".dimmed(),
+        deps.total.to_string().cyan(),
+    ));
+
+    if deps.dependencies.is_empty() {
+        lines.push(format!("   {}", "No dependencies found".dimmed()));
+        return lines;
+    }
+
+    lines.push("─".repeat(64));
+
+    // Group by type
+    let mut by_type: std::collections::BTreeMap<&str, Vec<&DependencyOutput>> =
+        std::collections::BTreeMap::new();
+    for dep in &deps.dependencies {
+        let key = dep.dependency_type.as_deref().unwrap_or("unknown");
+        by_type.entry(key).or_default().push(dep);
+    }
+
+    for (dep_type, group) in &by_type {
+        lines.push(format!(
+            "   {} {} ({})",
+            "▸".dimmed(),
+            dep_type.bold(),
+            group.len()
+        ));
+
+        let show_count = if verbose { group.len() } else { group.len().min(20) };
+
+        for dep in group.iter().take(show_count) {
+            lines.extend(format_dependency(dep, verbose));
+        }
+
+        if !verbose && group.len() > 20 {
+            lines.push(format!(
+                "      {}",
+                format!("[{} more — use --verbose to see all]", group.len() - 20).dimmed()
+            ));
+        }
+    }
+
+    if !verbose {
+        lines.push(String::new());
+        lines.push(format!(
+            "   {}",
+            "[Use --verbose for repository details]".dimmed()
+        ));
+    }
+
+    lines
+}
+
+fn format_dependency(dep: &DependencyOutput, verbose: bool) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    // Build coordinate string: namespace:name:version
+    let coord = match (&dep.namespace, &dep.name, &dep.version) {
+        (Some(ns), Some(name), Some(ver)) => format!("{}:{}:{}", ns, name, ver),
+        (Some(ns), Some(name), None) => format!("{}:{}", ns, name),
+        (None, Some(name), Some(ver)) => format!("{}:{}", name, ver),
+        (None, Some(name), None) => name.clone(),
+        _ => dep.purl.as_deref().unwrap_or("<unknown>").to_string(),
+    };
+
+    lines.push(format!("      {} {}", "•".dimmed(), coord));
+
+    if verbose {
+        if let Some(ref purl) = dep.purl {
+            lines.push(format!("         purl: {}", purl.dimmed()));
+        }
+        if let Some(ref repo_url) = dep.repository_url {
+            let source_suffix = dep
+                .resolution_source
+                .as_deref()
+                .map(|s| format!(" ({})", s))
+                .unwrap_or_default();
+            lines.push(format!(
+                "         repo: {}{}",
+                repo_url.dimmed(),
+                source_suffix.dimmed()
+            ));
+        }
+    }
+
+    lines
 }
 
 /// Format bytes into a human-readable string.
