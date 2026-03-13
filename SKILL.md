@@ -260,7 +260,7 @@ dvcli build $(echo "https://gradle-enterprise.example.com/s/abc123xyz" | sed 's|
 | `tests` | Complete test execution results (summary + individual test details) |
 | `task-execution` | Task cache avoidance, build timing, parallelism, per-task breakdown |
 | `network-activity` | HTTP requests, file downloads, timing by method and repository |
-| `dependencies` | Resolved dependencies grouped by type (e.g., maven); purl and repository details with `--verbose` |
+| `dependencies` | Resolved dependencies grouped by type (e.g., maven); purl and repository details with `--verbose`. Note: the same dependency may appear multiple times if resolved from different sources (e.g., once from local cache without a repo URL, once from a remote repository). |
 | `all` | Everything (default if `-i` is not specified) |
 
 **Combine options** with commas: `-i result,failures,tests`

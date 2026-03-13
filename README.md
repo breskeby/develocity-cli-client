@@ -138,6 +138,10 @@ dvcli build abc123xyz -i dependencies
 # Show dependencies with repository and purl details
 dvcli build abc123xyz -i dependencies -v
 
+# Note: the same dependency may appear multiple times in the output if the API
+# reports it resolved from multiple sources (e.g., once from local/configuration
+# cache without a repository URL, and once from a remote repository).
+
 # Investigate a build failure: result + failures + task execution
 dvcli build abc123xyz -i result,failures,task-execution -v
 ```
